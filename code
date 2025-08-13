@@ -1,0 +1,600 @@
+import React, { useEffect, useMemo, useRef, useState } from "react";
+
+// ==========================
+// Config & utilitaires
+// ==========================
+const BASE_POINTS = 10; // points par bonne réponse
+const BONUS_3 = 5;      // bonus à 3 bonnes d'affilée
+const BONUS_5 = 10;     // bonus à 5 bonnes d'affilée
+const DEFAULT_TIMER = 20; // secondes
+
+const CATEGORIES = [
+  { key: "histoire",        label: "Histoire",         color: "#1E90FF" }, // bleu
+  { key: "geographie",      label: "Géographie",       color: "#3CB371" }, // vert
+  { key: "sciences",        label: "Sciences",         color: "#FF8C00" }, // orange
+  { key: "arts",            label: "Arts & Lettres",   color: "#FF69B4" }, // rose
+  { key: "sports",          label: "Sports",           color: "#FFD700" }, // jaune
+  { key: "divertissement",  label: "Divertissement",   color: "#8A2BE2" }, // violet
+];
+
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function pickN(arr, n, exceptIndex = -1) {
+  const pool = arr.map((x, i) => ({ x, i })).filter(o => o.i !== exceptIndex);
+  const s = shuffle(pool).slice(0, n).map(o => o.x);
+  return s;
+}
+
+// ==========================
+// Génération d'un gros pack de questions (≈172 questions)
+// ==========================
+function buildPack() {
+  // --- Géographie : capitales ---
+  const capitals = [
+    ["France", "Paris"], ["Italie", "Rome"], ["Espagne", "Madrid"], ["Allemagne", "Berlin"], ["Portugal", "Lisbonne"],
+    ["Suisse", "Berne"], ["Autriche", "Vienne"], ["Belgique", "Bruxelles"], ["Pays-Bas", "Amsterdam"], ["Danemark", "Copenhague"],
+    ["Suède", "Stockholm"], ["Norvège", "Oslo"], ["Finlande", "Helsinki"], ["Islande", "Reykjavik"], ["Royaume-Uni", "Londres"],
+    ["Irlande", "Dublin"], ["Pologne", "Varsovie"], ["Tchéquie", "Prague"], ["Hongrie", "Budapest"], ["Grèce", "Athènes"],
+    ["Turquie", "Ankara"], ["Russie", "Moscou"], ["États-Unis", "Washington"], ["Canada", "Ottawa"], ["Mexique", "Mexico"],
+    ["Brésil", "Brasilia"], ["Argentine", "Buenos Aires"], ["Chili", "Santiago"], ["Colombie", "Bogota"], ["Pérou", "Lima"],
+    ["Maroc", "Rabat"], ["Algérie", "Alger"], ["Tunisie", "Tunis"], ["Égypte", "Le Caire"], ["Afrique du Sud", "Pretoria"],
+    ["Kenya", "Nairobi"], ["Éthiopie", "Addis-Abeba"], ["Nigéria", "Abuja"], ["Chine", "Pékin"], ["Japon", "Tokyo"],
+    ["Corée du Sud", "Séoul"], ["Inde", "New Delhi"], ["Pakistan", "Islamabad"], ["Indonésie", "Jakarta"], ["Australie", "Canberra"],
+    ["Nouvelle-Zélande", "Wellington"], ["Arabie saoudite", "Riyad"], ["Émirats arabes unis", "Abou Dabi"], ["Iran", "Téhéran"], ["Irak", "Bagdad"],
+    // Ajouts pour atteindre ~172
+    ["Venezuela", "Caracas"], ["Uruguay", "Montevideo"], ["Bolivie", "Sucre"], ["Paraguay", "Asunción"], ["Équateur", "Quito"],
+    ["Sénégal", "Dakar"], ["Côte d'Ivoire", "Yamoussoukro"], ["Ghana", "Accra"], ["Cambodge", "Phnom Penh"], ["Vietnam", "Hanoï"],
+  ];
+
+  // --- Histoire : événements ---
+  const history = [
+    ["la Révolution française", "1789"], ["la chute du Mur de Berlin", "1989"], ["la découverte de l'Amérique par Colomb", "1492"],
+    ["la fin de la Première Guerre mondiale (traité de Versailles)", "1919"], ["la prise de la Bastille", "1789"],
+    ["la bataille de Waterloo", "1815"], ["la déclaration d'indépendance des États-Unis", "1776"], ["l'invention de l'imprimerie par Gutenberg (env.)", "1450"],
+    ["la révolution russe (février)", "1917"], ["la création de l'ONU", "1945"], ["la Renaissance commence (env.)", "1400"],
+    ["le couronnement de Charlemagne", "800"], ["le traité de Tordesillas", "1494"], ["la guerre de Cent Ans commence (env.)", "1337"],
+    ["la découverte de la pénicilline (Fleming)", "1928"], ["la Commune de Paris", "1871"], ["l'abolition de l'esclavage en France", "1848"],
+    ["la Seconde Guerre mondiale commence", "1939"], ["la Seconde Guerre mondiale se termine", "1945"], ["la Première croisade", "1096"],
+    // Ajouts
+    ["la victoire de Marignan", "1515"], ["la chute de Constantinople", "1453"], ["la signature de la Magna Carta", "1215"],
+    ["le traité d'Utrecht (1713)", "1713"], ["la proclamation de la République en France (1792)", "1792"],
+  ];
+
+  // --- Sciences : symboles d'éléments ---
+  const elements = [
+    ["Hydrogène", "H"], ["Hélium", "He"], ["Lithium", "Li"], ["Carbone", "C"], ["Azote", "N"], ["Oxygène", "O"], ["Sodium", "Na"], ["Magnésium", "Mg"], ["Aluminium", "Al"], ["Silicium", "Si"],
+    ["Phosphore", "P"], ["Soufre", "S"], ["Chlore", "Cl"], ["Potassium", "K"], ["Calcium", "Ca"], ["Fer", "Fe"], ["Cuivre", "Cu"], ["Zinc", "Zn"], ["Argent", "Ag"], ["Or", "Au"],
+    ["Étain", "Sn"], ["Plomb", "Pb"], ["Mercure", "Hg"], ["Iode", "I"], ["Uranium", "U"],
+    // Ajouts
+    ["Platine", "Pt"], ["Nickel", "Ni"], ["Bore", "B"], ["Chrome", "Cr"],
+  ];
+
+  // --- Arts & Lettres : œuvres → auteur ---
+  const arts = [
+    ["Les Misérables", "Victor Hugo"], ["Le Petit Prince", "Antoine de Saint-Exupéry"], ["Madame Bovary", "Gustave Flaubert"],
+    ["Le Rouge et le Noir", "Stendhal"], ["Germinal", "Émile Zola"], ["L'Étranger", "Albert Camus"], ["Candide", "Voltaire"],
+    ["Les Fleurs du mal", "Charles Baudelaire"], ["À la recherche du temps perdu", "Marcel Proust"], ["La Princesse de Clèves", "Madame de La Fayette"],
+    ["Dom Juan", "Molière"], ["Phèdre", "Racine"], ["Cyrano de Bergerac", "Edmond Rostand"], ["Le Cid", "Corneille"], ["La Condition humaine", "André Malraux"],
+    ["L'Assommoir", "Émile Zola"], ["Bel-Ami", "Guy de Maupassant"], ["La Peste", "Albert Camus"], ["L'Île mystérieuse", "Jules Verne"], ["Notre-Dame de Paris", "Victor Hugo"],
+    // Ajouts
+    ["Le Père Goriot", "Honoré de Balzac"], ["Le Horla", "Guy de Maupassant"], ["La Chartreuse de Parme", "Stendhal"], ["La Symphonie pastorale", "André Gide"],
+  ];
+
+  // --- Sports : faits & règles ---
+  const sports = [
+    ["Combien de joueurs sur le terrain par équipe au football (soccer)?", "11"],
+    ["Combien de points vaut un essai au rugby à XV?", "5"],
+    ["Quel tournoi de tennis se joue sur gazon?", "Wimbledon"],
+    ["Surface de Roland-Garros?", "Terre battue"],
+    ["Nombre d'anneaux olympiques sur le logo?", "5"],
+    ["Distance d'un marathon (en km)?", "42,195"],
+    ["Sport utilisant un fleuret?", "Escrime"],
+    ["Ville des JO d'été 1992?", "Barcelone"],
+    ["Nombre de quarts-temps en basket FIBA?", "4"],
+    ["Surnom d'Usain Bolt?", "La Foudre"],
+    ["Combien de grands chelems au tennis masculin (sets gagnants)?", "3 sur 5"],
+    ["Instrument utilisé au biathlon avec le ski?", "Carabine"],
+    ["Surface de l'US Open (depuis 2020)?", "Dur"],
+    ["Nombre de joueurs au handball par équipe sur le terrain?", "7"],
+    ["Quel sport se joue avec un volant?", "Badminton"],
+    // Ajouts
+    ["Durée d'un match de handball (minutes)?", "60"], ["Combien de joueurs dans une équipe de hockey sur glace?", "6"], ["Distance d'un 100m sprint?", "100"], ["Combien de clubs en Ligue 1 (France)?", "20"],
+  ];
+
+  // --- Divertissement : œuvres/films → auteur/réalisateur ---
+  const entertainment = [
+    ["Inception (réalisateur)", "Christopher Nolan"], ["Le Fabuleux Destin d'Amélie Poulain (réalisateur)", "Jean-Pierre Jeunet"],
+    ["Star Wars V: L'Empire contre-attaque (phrase 'Je suis ton père') — réalisateur", "Irvin Kershner"], ["Harry Potter (héros principal)", "Harry Potter"],
+    ["One Piece (auteur)", "Eiichiro Oda"], ["Album 'Lemonade' (artiste)", "Beyoncé"], ["Studio de Mickey Mouse", "Disney"], ["Ville de Springfield (série)", "Les Simpson"],
+    ["Réseau social aux vidéos courtes défilantes", "TikTok"], ["Licence Nintendo située à Hyrule", "Zelda"], ["Film 'Parasite' (réalisateur)", "Bong Joon-ho"], ["Série avec la famille Stark", "Game of Thrones"],
+    ["Saga 'Le Seigneur des Anneaux' (auteur)", "J. R. R. Tolkien"], ["Matrix (réal.)", "Lana & Lilly Wachowski"], ["Titanic (réal.)", "James Cameron"],
+    // Ajouts
+    ["Réalisateur de 'Pulp Fiction'", "Quentin Tarantino"], ["Auteur de 'Akira'", "Katsuhiro Otomo"], ["Actrice principale de 'La Reine des Neiges' (voix) — Elsa", "Idina Menzel"],
+  ];
+
+  // fabrique des questions à choix multiples à partir des couples [clef, réponse]
+  let questions = [];
+
+  // Géographie (capitale du pays X ?)
+  capitals.forEach(([country, capital], idx) => {
+    const optionsBase = capitals.map(([, c]) => c);
+    const correctIndex = optionsBase.indexOf(capital);
+    const distractors = pickN(optionsBase, 3, correctIndex);
+    const opts = shuffle([capital, ...distractors]).slice(0, 4);
+    questions.push({
+      id: `G-${idx+1}`,
+      categorie: "geographie",
+      question: `Quelle est la capitale de ${country} ?`,
+      answer: capital,
+      options: opts,
+    });
+  });
+
+  // Histoire (en quelle année a eu lieu X ?)
+  history.forEach(([event, year], idx) => {
+    const optionsBase = history.map(([, y]) => y);
+    const correctIndex = optionsBase.indexOf(year);
+    const distractors = pickN(optionsBase, 3, correctIndex);
+    const opts = shuffle([year, ...distractors]).slice(0, 4);
+    questions.push({
+      id: `H-${idx+1}`,
+      categorie: "histoire",
+      question: `En quelle année a eu lieu ${event} ?`,
+      answer: year,
+      options: opts,
+    });
+  });
+
+  // Sciences (symbole de l'élément X ?)
+  elements.forEach(([name, symbol], idx) => {
+    const optionsBase = elements.map(([, s]) => s);
+    const correctIndex = optionsBase.indexOf(symbol);
+    const distractors = pickN(optionsBase, 3, correctIndex);
+    const opts = shuffle([symbol, ...distractors]).slice(0, 4);
+    questions.push({
+      id: `S-${idx+1}`,
+      categorie: "sciences",
+      question: `Quel est le symbole chimique de ${name} ?`,
+      answer: symbol,
+      options: opts,
+    });
+  });
+
+  // Arts & Lettres (qui a écrit X ?)
+  arts.forEach(([work, author], idx) => {
+    const optionsBase = arts.map(([, a]) => a);
+    const correctIndex = optionsBase.indexOf(author);
+    const distractors = pickN(optionsBase, 3, correctIndex);
+    const opts = shuffle([author, ...distractors]).slice(0, 4);
+    questions.push({
+      id: `A-${idx+1}`,
+      categorie: "arts",
+      question: `Qui est l'auteur ou l'autrice de « ${work} » ?`,
+      answer: author,
+      options: opts,
+    });
+  });
+
+  // Sports (QA directes)
+  sports.forEach(([q, a], idx) => {
+    const base = Array.from(new Set([...sports.map(([, x]) => x), "10", "12", "3", "2", "6", "Herbe", "Gazon", "Terre battue", "Dur"]));
+    const correctIndex = base.indexOf(a);
+    const distractors = pickN(base, 3, correctIndex);
+    const opts = shuffle([a, ...distractors]).slice(0, 4);
+    questions.push({ id: `SP-${idx+1}`, categorie: "sports", question: q, answer: a, options: opts });
+  });
+
+  // Divertissement
+  entertainment.forEach(([q, a], idx) => {
+    const base = Array.from(new Set([...entertainment.map(([, x]) => x), "Spielberg", "Ridley Scott", "Adele", "Rihanna", "Marseille", "Mario", "Metroid"]));
+    const correctIndex = base.indexOf(a);
+    const distractors = pickN(base, 3, correctIndex);
+    const opts = shuffle([a, ...distractors]).slice(0, 4);
+    questions.push({ id: `D-${idx+1}`, categorie: "divertissement", question: q, answer: a, options: opts });
+  });
+
+  // Mélange final
+  return shuffle(questions);
+}
+
+// ==========================
+// Persistance locale
+// ==========================
+const LS_KEY = (k) => `tp-fr:${k}`;
+const saveLS = (k, v) => {
+  try { localStorage.setItem(LS_KEY(k), JSON.stringify(v)); } catch {}
+};
+const loadLS = (k, fallback) => {
+  try { const v = localStorage.getItem(LS_KEY(k)); return v ? JSON.parse(v) : fallback; } catch { return fallback; }
+};
+
+// ==========================
+// Composant principal
+// ==========================
+export default function App(){
+  const [pack, setPack] = useState(() => buildPack());
+  const [queues, setQueues] = useState(() => makeQueues(pack));
+  const [score, setScore] = useState(() => loadLS("score", 0));
+  const [earned, setEarned] = useState(() => loadLS("earned", emptyEarned()));
+  const [combo, setCombo] = useState(0);
+  const [timer, setTimer] = useState(DEFAULT_TIMER);
+  const [current, setCurrent] = useState(null); // {catKey, q}
+  const [running, setRunning] = useState(false);
+  const [configTime, setConfigTime] = useState(DEFAULT_TIMER);
+
+  useEffect(()=> saveLS("score", score), [score]);
+  useEffect(()=> saveLS("earned", earned), [earned]);
+
+  // Timer effect
+  useEffect(() => {
+    if (!running || !current) return;
+    if (timer <= 0) {
+      handleAnswer(null); // timeout = faux
+      return;
+    }
+    const id = setTimeout(() => setTimer(t => t - 1), 1000);
+    return () => clearTimeout(id);
+  }, [running, current, timer]);
+
+  const totalWedges = useMemo(() => Object.values(earned).filter(Boolean).length, [earned]);
+
+  function emptyEarned(){
+    return { histoire:false, geographie:false, sciences:false, arts:false, sports:false, divertissement:false };
+  }
+
+  function makeQueues(p){
+    const by = { histoire:[], geographie:[], sciences:[], arts:[], sports:[], divertissement:[] };
+    p.forEach(q => by[q.categorie].push(q));
+    Object.keys(by).forEach(k => by[k] = shuffle(by[k]));
+    return by;
+  }
+
+  function spin(){
+    if (running || current) return;
+    const cats = CATEGORIES.map(c => c.key);
+    const catKey = cats[Math.floor(Math.random()*cats.length)];
+    draw(catKey);
+  }
+
+  function draw(catKey){
+    setCurrent(null);
+    setTimer(configTime);
+    setRunning(true);
+    setQueues(prev => {
+      const copy = { ...prev };
+      if (!copy[catKey] || copy[catKey].length === 0) {
+        copy[catKey] = shuffle(pack.filter(q => q.categorie === catKey));
+      }
+      const q = copy[catKey][0];
+      setCurrent({ catKey, q });
+      return copy;
+    });
+  }
+
+  function handleAnswer(option){
+    if (!current) return;
+    const correct = option === current.q.answer;
+    setRunning(false);
+    setQueues(prev => {
+      const copy = { ...prev };
+      copy[current.catKey] = copy[current.catKey].slice(1);
+      return copy;
+    });
+
+    if (correct) {
+      setScore(s => s + BASE_POINTS);
+      setCombo(c => {
+        const nc = c + 1;
+        if (nc === 3) setScore(s => s + BONUS_3);
+        if (nc === 5) setScore(s => s + BONUS_5);
+        return nc;
+      });
+      if (!earned[current.catKey]) {
+        setEarned(e => ({ ...e, [current.catKey]: true }));
+      }
+    } else {
+      setCombo(0);
+    }
+    setCurrent(null);
+  }
+
+  function resetGame(){
+    setScore(0);
+    setCombo(0);
+    setEarned(emptyEarned());
+    setQueues(makeQueues(pack));
+    setTimer(configTime);
+    setRunning(false);
+    setCurrent(null);
+  }
+
+  function exportJSON(){
+    const minimal = pack.map(q => ({ id:q.id, categorie:q.categorie, question:q.question, answer:q.answer, options:q.options }));
+    const blob = new Blob([JSON.stringify(minimal, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "quiz_trivial_pursuit_FR_pack.json"; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function importJSON(text){
+    try{
+      const arr = JSON.parse(text);
+      if (!Array.isArray(arr)) throw new Error("Format invalide");
+      const valid = arr.every(q => q && q.categorie && q.question && q.answer && Array.isArray(q.options));
+      if (!valid) throw new Error("Certaines questions sont invalides");
+      setPack(arr);
+      setQueues(makeQueues(arr));
+      resetGame();
+    }catch(e){
+      alert("Échec import: " + (e?.message || e));
+    }
+  }
+
+  const currentCategory = current ? CATEGORIES.find(c => c.key === current.catKey) : null;
+
+  return (
+    <div style={styles.page}>
+      <header style={styles.header}>
+        <div>
+          <h1 style={styles.h1}>Quiz Trivial Pursuit (FR)</h1>
+          <p style={styles.muted}>Tourne, réponds vite, aligne les combos et gagne les 6 camemberts !</p>
+        </div>
+        <div style={styles.topActions}>
+          <button style={styles.btnSecondary} onClick={exportJSON}>Exporter pack</button>
+          <ImportBox onImport={importJSON} />
+        </div>
+      </header>
+
+      {/* Tableau de bord */}
+      <section style={styles.grid}>
+        <div style={styles.card}>
+          <div style={styles.cardHeader}>
+            <div style={{fontWeight:700}}>Roue (tirage aléatoire)</div>
+            <div style={styles.badge}>Score : {score}</div>
+          </div>
+          <div style={styles.cardBody}>
+            <div style={styles.wheelRow}>
+              <Wheel categories={CATEGORIES} activeKey={current?.catKey} />
+              <div style={{flex:1}}>
+                <p style={styles.muted}>Clique sur <b>Tourner</b> pour tirer une catégorie. Réponds correctement pour gagner son camembert.</p>
+                <button onClick={spin} disabled={running || !!current} style={styles.btnPrimary}>Tourner</button>
+                <div style={{marginTop:12}}>
+                  <label style={styles.muted}>Durée par question:&nbsp;</label>
+                  <input type="range" min={10} max={60} step={5} value={configTime} onChange={e=>setConfigTime(parseInt(e.target.value,10))} />
+                  <span style={{marginLeft:8}}>{configTime}s</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style={styles.card}>
+          <div style={styles.cardHeader}><div style={{fontWeight:700}}>Camemberts</div></div>
+          <div style={{...styles.cardBody, alignItems:'center'}}>
+            <CheeseBoard earned={earned} />
+            <div style={{marginTop:8, fontSize:12, color:'#64748b'}}>{Object.values(earned).filter(Boolean).length} / 6</div>
+          </div>
+        </div>
+      </section>
+
+      {/* Question */}
+      {current && (
+        <section style={styles.card}>
+          <div style={styles.cardHeader}>
+            <div style={{display:'flex',alignItems:'center',gap:8}}>
+              <span style={{...styles.dot, backgroundColor: currentCategory?.color}}/>
+              <div>{currentCategory?.label}</div>
+            </div>
+            <div style={styles.badge}>Combo : {combo}</div>
+          </div>
+          <div style={styles.cardBody}>
+            <div style={styles.questionRow}>
+              <div style={styles.timerBox}>
+                <div style={styles.timerLabel}>Temps</div>
+                <ProgressCircle size={90} value={timer} max={configTime} color={currentCategory?.color || '#0ea5e9'} />
+                <div style={styles.timerValue}>{timer}s</div>
+              </div>
+              <div style={{flex:1}}>
+                <div style={styles.questionText}>{current.q.question}</div>
+                <div style={styles.optionsGrid}>
+                  {current.q.options.map((opt, i) => (
+                    <button key={i} style={styles.optionBtn} onClick={()=>handleAnswer(opt)} disabled={!running}>{opt}</button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Panneau partie */}
+      <section style={styles.card}>
+        <div style={styles.cardHeader}><div style={{fontWeight:700}}>État de la partie</div></div>
+        <div style={styles.cardBody}>
+          <div style={styles.badgesWrap}>
+            {CATEGORIES.map(c => (
+              <span key={c.key} style={{...styles.catBadge, backgroundColor: earned[c.key] ? c.color : '#e2e8f0', color: earned[c.key] ? '#0f172a' : '#475569'}}>{c.label}{earned[c.key] ? ' ✓' : ''}</span>
+            ))}
+          </div>
+          <div style={{fontSize:12,color:'#64748b'}}>Bonnes réponses: +{BASE_POINTS} pts • Combo +3: +{BONUS_3} • Combo +5: +{BONUS_5}</div>
+          <div style={{marginTop:8}}>
+            <button style={styles.btnGhost} onClick={resetGame}>Réinitialiser la partie</button>
+          </div>
+        </div>
+      </section>
+
+      <footer style={{textAlign:'center', fontSize:12, color:'#94a3b8', padding:'24px 0'}}>Pack généré automatiquement (≈172 questions). Tu peux importer ton propre JSON pour personnaliser.</footer>
+    </div>
+  );
+}
+
+// ==========================
+// Wheel (SVG simple)
+// ==========================
+function Wheel({ categories, activeKey }){
+  const size = 220;
+  const r = size/2 - 6;
+  return (
+    <div style={{position:'relative', width:size, height:size}}>
+      <svg viewBox={`0 0 ${size} ${size}`} width={size} height={size} style={{display:'block', borderRadius:'9999px', boxShadow:'inset 0 0 0 4px #fff'}}>
+        {categories.map((c, i) => {
+          const start = i * (360/categories.length);
+          const end = (i+1) * (360/categories.length);
+          const d = describeArc(size/2, size/2, r, start, end);
+          return <path key={c.key} d={d} fill={c.color} stroke="#fff" strokeWidth="1"/>;
+        })}
+        {categories.map((c, i) => {
+          const angle = (i + 0.5) * (360/categories.length) - 90;
+          const x = size/2 + (r-40) * Math.cos(angle * Math.PI/180);
+          const y = size/2 + (r-40) * Math.sin(angle * Math.PI/180);
+          return <text key={c.key+"t"} x={x} y={y} textAnchor="middle" dominantBaseline="middle" fontSize="10" fill="#fff">{c.label.split(' ')[0]}</text>;
+        })}
+      </svg>
+      <div style={{position:'absolute', top:-6, left:size/2-8, width:0, height:0, borderLeft:'8px solid transparent', borderRight:'8px solid transparent', borderBottom:'14px solid #0f172a'}}/>
+      {activeKey && (<div style={{position:'absolute', bottom:8, left:0, right:0, textAlign:'center', fontSize:12, color:'#334155'}}>Catégorie tirée: <b>{categories.find(c=>c.key===activeKey)?.label}</b></div>)}
+    </div>
+  );
+}
+
+function polarToCartesian(centerX, centerY, radius, angleInDegrees) {
+  const angleInRadians = (angleInDegrees-90) * Math.PI / 180.0;
+  return {
+    x: centerX + (radius * Math.cos(angleInRadians)),
+    y: centerY + (radius * Math.sin(angleInRadians))
+  };
+}
+function describeArc(x, y, radius, startAngle, endAngle) {
+  const start = polarToCartesian(x, y, radius, endAngle);
+  const end = polarToCartesian(x, y, radius, startAngle);
+  const largeArcFlag = endAngle - startAngle <= 180 ? "0" : "1";
+  const d = [
+    "M", start.x, start.y,
+    "A", radius, radius, 0, largeArcFlag, 0, end.x, end.y,
+    "L", x, y,
+    "Z"
+  ].join(" ");
+  return d;
+}
+
+// ==========================
+// UI composants
+// ==========================
+function ProgressCircle({ size=90, value=0, max=20, color="#0ea5e9" }){
+  const r = (size-14)/2; // padding visuel
+  const c = 2*Math.PI*r;
+  const pct = Math.max(0, Math.min(1, value/max));
+  const dash = c * pct;
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      <circle cx={size/2} cy={size/2} r={r} stroke="#e2e8f0" strokeWidth="8" fill="none" />
+      <circle cx={size/2} cy={size/2} r={r} stroke={color} strokeWidth="8" fill="none"
+              strokeDasharray={`${dash} ${c-dash}`} strokeLinecap="round" transform={`rotate(-90 ${size/2} ${size/2})`} />
+    </svg>
+  );
+}
+
+function CheeseBoard({ earned }){
+  const size = 160; const r = size/2 - 6;
+  return (
+    <div style={{position:'relative', width:size, height:size}}>
+      <svg viewBox={`0 0 ${size} ${size}`} width={size} height={size} style={{display:'block'}}>
+        {CATEGORIES.map((c, i) => {
+          const d = describeArc(size/2, size/2, r, i*60, (i+1)*60);
+          return <path key={c.key} d={d} fill={earned[c.key] ? c.color : '#e2e8f0'} stroke="#fff" strokeWidth="1"/>;
+        })}
+      </svg>
+    </div>
+  );
+}
+
+function ImportBox({ onImport }){
+  const taRef = useRef(null);
+  const [open, setOpen] = useState(false);
+  return (
+    <div>
+      <button style={styles.btnGhost} onClick={()=>setOpen(o=>!o)}>{open?"Fermer l'import":"Importer JSON"}</button>
+      {open && (
+        <div style={{marginTop:8}}>
+          <textarea ref={taRef} placeholder="Colle ici un tableau JSON de questions…" style={styles.textarea} />
+          <div style={{display:'flex', gap:8, marginTop:8, flexWrap:'wrap'}}>
+            <button style={styles.btnSecondary} onClick={()=>{
+              const t = taRef.current?.value || ""; if (t.trim()) onImport(t);
+            }}>Charger ce JSON</button>
+            <button style={styles.btnGhost} onClick={()=>{ if(taRef.current) taRef.current.value = exampleJSON; }}>Exemple</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const exampleJSON = JSON.stringify([
+  { id:"X1", categorie:"histoire", question:"Exemple: en quelle année a commencé la Première Guerre mondiale ?", answer:"1914", options:["1914","1916","1912","1918"] }
+], null, 2);
+
+// ==========================
+// Styles inline (pour éviter dépendances CSS)
+// ==========================
+const styles = {
+  page: { minHeight:'100vh', background:'#f8fafc', color:'#0f172a', padding:'24px' },
+  header: { display:'flex', justifyContent:'space-between', alignItems:'center', maxWidth:1100, margin:'0 auto 16px auto' },
+  h1: { fontSize:28, fontWeight:800, margin:0 },
+  muted: { color:'#64748b', fontSize:14 },
+  topActions: { display:'flex', gap:8, flexWrap:'wrap' },
+  grid: { display:'grid', gridTemplateColumns:'1fr 320px', gap:16, maxWidth:1100, margin:'0 auto 16px auto' },
+  card: { background:'#fff', borderRadius:16, boxShadow:'0 1px 2px rgba(0,0,0,0.05)', padding:16, maxWidth:1100, margin:'0 auto 16px auto' },
+  cardHeader: { display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 },
+  badge: { background:'#e2e8f0', padding:'6px 10px', borderRadius:999, fontSize:12 },
+  cardBody: { display:'block' },
+  wheelRow: { display:'flex', gap:16, alignItems:'center' },
+  dot: { display:'inline-block', width:10, height:10, borderRadius:999 },
+  questionRow: { display:'flex', gap:16, alignItems:'stretch' },
+  timerBox: { width:120, textAlign:'center', position:'relative' },
+  timerLabel: { fontSize:12, color:'#64748b' },
+  timerValue: { position:'absolute', left:0, right:0, bottom:26, fontSize:14, color:'#334155', fontWeight:700 },
+  questionText: { fontSize:18, fontWeight:700, marginBottom:12 },
+  optionsGrid: { display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 },
+  optionBtn: { textAlign:'left', padding:'10px 12px', background:'#f1f5f9', border:'1px solid #e2e8f0', borderRadius:12, cursor:'pointer' },
+  btnPrimary: { padding:'10px 14px', background:'#0ea5e9', color:'#fff', border:'none', borderRadius:12, cursor:'pointer', fontWeight:700 },
+  btnSecondary: { padding:'8px 12px', background:'#e2e8f0', color:'#0f172a', border:'none', borderRadius:10, cursor:'pointer' },
+  btnGhost: { padding:'8px 12px', background:'transparent', color:'#0f172a', border:'1px solid #e2e8f0', borderRadius:10, cursor:'pointer' },
+  badgesWrap: { display:'flex', flexWrap:'wrap', gap:8 },
+  catBadge: { padding:'6px 10px', borderRadius:999, fontSize:12 },
+  textarea: { width:'100%', minHeight:120, fontFamily:'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace', fontSize:12, padding:8, border:'1px solid #e2e8f0', borderRadius:8, background:'#f8fafc' },
+};
+
+// ==========================
+// Tests simples (runtime)
+// ==========================
+(function runSelfTests(){
+  try {
+    const p = buildPack();
+    console.assert(Array.isArray(p) && p.length >= 172, "Le pack doit contenir ≥ 172 questions");
+    // Chaque question doit contenir 4 options uniques et inclure la bonne réponse
+    const bad1 = p.find(q => !q.options || q.options.length !== 4);
+    const bad2 = p.find(q => new Set(q.options).size !== 4);
+    const bad3 = p.find(q => !q.options.includes(q.answer));
+    console.assert(!bad1 && !bad2 && !bad3, "Options invalides (longueur/duplicats/réponse manquante)");
+    // Répartition minimale: chaque catégorie doit avoir au moins 10 questions
+    const countBy = p.reduce((acc,q)=>{acc[q.categorie]=(acc[q.categorie]||0)+1;return acc;},{});
+    console.assert(Object.keys(countBy).length===6 && Object.values(countBy).every(n=>n>=10), "Répartition des catégories insuffisante");
+    // Vérifier le bonus de combo avec une simulation simple
+    let score = 0, combo = 0;
+    function correct(){ combo++; score += BASE_POINTS; if (combo===3) score+=BONUS_3; if (combo===5) score+=BONUS_5; }
+    function wrong(){ combo = 0; }
+    correct(); correct(); correct(); // +10 +10 +10 +5
+    wrong();
+    correct(); correct(); correct(); correct(); correct(); // +10*5 +5 (à 3) +10 (à 5)
+    console.assert(score === (10+10+10+5) + (10*5 +5 +10), "Scoring combo inattendu");
+  } catch (e) {
+    console.warn("Self-tests: ", e);
+  }
+})();
