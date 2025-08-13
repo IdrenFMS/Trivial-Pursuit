@@ -3,28 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Trivial Pursuit Camembert</title>
+    <title>Quiz des Couleurs</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <h1>Trivial Pursuit</h1>
-
-    <div id="camembert">
-        <div class="slice" id="slice-0"></div>
-        <div class="slice" id="slice-1"></div>
-        <div class="slice" id="slice-2"></div>
-        <div class="slice" id="slice-3"></div>
-        <div class="slice" id="slice-4"></div>
-        <div class="slice" id="slice-5"></div>
+    <div class="container">
+        <h1>Quiz des Couleurs</h1>
+        <div id="quiz">
+            <div id="question-container">
+                <p id="question"></p>
+                <div id="answers"></div>
+            </div>
+            <button id="next" disabled>Question suivante</button>
+        </div>
+        <canvas id="chart" width="400" height="400"></canvas>
     </div>
-
-    <div id="jeu">
-        <p id="question"></p>
-        <div id="reponses"></div>
-        <p id="score">Score : 0</p>
-        <button id="suivant">Question suivante</button>
-    </div>
-
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="script.js"></script>
 </body>
 </html>
