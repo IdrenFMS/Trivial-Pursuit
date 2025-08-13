@@ -3,19 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Trivial Pursuit</title>
+    <title>Trivial Pursuit Camembert</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <h1>Trivial Pursuit</h1>
+
+    <div id="camembert">
+        <div class="slice" id="slice-0"></div>
+        <div class="slice" id="slice-1"></div>
+        <div class="slice" id="slice-2"></div>
+        <div class="slice" id="slice-3"></div>
+        <div class="slice" id="slice-4"></div>
+        <div class="slice" id="slice-5"></div>
+    </div>
+
     <div id="jeu">
-        <div id="question-container">
-            <p id="question"></p>
-            <div id="reponses"></div>
-        </div>
+        <p id="question"></p>
+        <div id="reponses"></div>
         <p id="score">Score : 0</p>
         <button id="suivant">Question suivante</button>
     </div>
+
     <script src="script.js"></script>
 </body>
 </html>
