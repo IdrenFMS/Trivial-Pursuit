@@ -5,11 +5,50 @@ body {
     padding: 20px;
 }
 
+h1 {
+    margin-bottom: 20px;
+}
+
+#camembert {
+    position: relative;
+    width: 300px;
+    height: 300px;
+    margin: 20px auto;
+    border-radius: 50%;
+    overflow: hidden;
+    box-shadow: 0 0 10px rgba(0,0,0,0.2);
+}
+
+.slice {
+    position: absolute;
+    width: 50%;
+    height: 50%;
+    top: 50%;
+    left: 50%;
+    transform-origin: 0% 0%;
+    clip-path: polygon(0 0, 100% 0, 0 100%);
+    background-color: grey;
+    opacity: 0.3;
+    transition: opacity 0.3s;
+}
+
+.slice.filled {
+    opacity: 1;
+}
+
+#slice-0 { transform: rotate(0deg); background-color: #FF0000; } /* Rouge */
+#slice-1 { transform: rotate(60deg); background-color: #FFA500; } /* Orange */
+#slice-2 { transform: rotate(120deg); background-color: #FFFF00; } /* Jaune */
+#slice-3 { transform: rotate(180deg); background-color: #008000; } /* Vert */
+#slice-4 { transform: rotate(240deg); background-color: #0000FF; } /* Bleu */
+#slice-5 { transform: rotate(300deg); background-color: #800080; } /* Violet */
+
 #jeu {
     background-color: #fff;
     padding: 20px;
     border-radius: 10px;
     display: inline-block;
+    margin-top: 20px;
 }
 
 button {
